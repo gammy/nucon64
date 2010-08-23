@@ -2,13 +2,19 @@
 # The worst progr
 use warnings;
 use strict;
-use Cdk; # Fucks everything up
+use Curses::UI;
+use Curses::UI::Listbox;
+
 use DBI;
 use Getopt::Long;
 use Data::Dumper;
 
 use constant PROG_VERSION => scalar('0.1');
 use constant DB_FILENAME => $ENV{HOME} . '/.nucon64.sql';
+
+my %roms;     # ROM cache
+my %menu;     # Menu index + menu title
+my %menu_map; # Mapper for menu number <> rom ID
 
 sub create_table{
 
@@ -86,7 +92,7 @@ sub get_entry{
 
 sub get_all_roms{
 	my $dbh = shift;
-	my %roms;
+	my %out;
 
 	$| = 0; print "Please wait..";
 
@@ -113,12 +119,12 @@ sub get_all_roms{
 			   'has_dat'=> $has_dat,
 			   'ok_dump'=> $ok_dump);
 
-		$roms{$id} = \%tmp;
+		$out{$id} = \%tmp;
 	}
 
 	$| = 1; print "ok.\n";
 
-	return %roms;
+	return %out;
 }
 
 sub find_roms{
@@ -193,6 +199,28 @@ sub find_roms{
 
 ###############################################################################
 
+sub user_select {
+	my ($cui, $obj) = @_;
+
+	my $item = $obj->get_active_value();
+
+	my $id = $menu_map{$item};
+
+	$cui->leave_curses();
+
+	my @cmd = ('ucon64', 
+		   '--xgd6',
+		   $roms{$id}->{file});
+
+	print "->@cmd\n";
+
+	system @cmd;
+	print "\e[1;37mPress return to continue\e[0m";
+	my $tmp = <>;
+}
+
+###############################################################################
+
 my $search_path = '';
 
 GetOptions('scan|s=s' => \$search_path);
@@ -206,66 +234,38 @@ create_table($dbh); # Creates if nonexistent
 find_roms($dbh, $search_path) if $search_path ne '';
 
 # Populate cache
-my %roms = get_all_roms($dbh);
+%roms = get_all_roms($dbh);
 
-my $count = (keys %roms);
-die "No roms found. Try -scan <path>" if $count == 0;
+my $rom_count = (keys %roms);
+die "No roms found. Try -scan <path>" if $rom_count == 0;
+print "$rom_count roms.\n";
 
 # Generate menu
-print "Generating menu..";
-my @menu = ();
-my %menu_map; # Mapper for menu number <> rom ID
-
+my $count = 0;
 foreach (sort {$roms{$b} <=> $roms{$a}} (keys %roms)) {
-	push @menu, sprintf("(<//4/4>%s<!4>) %s",
-		    $roms{$_}->{category},
-		    $roms{$_}->{title});
-	
-	$menu_map{@menu - 1} = $_;
+	$menu{$count} = sprintf("(%s) %s", 
+				$roms{$_}->{category}, 
+				$roms{$_}->{title});
+	$menu_map{$count} = $_;
+
+	$count++
 }
 
-print "ok, " . @menu / 2 . " items\n";
+# Widget
+my $cui = Curses::UI->new(-color_suppoer => 1,
+			  -clear_on_exit => 0);
 
-# Get screen dimensions
-my ($width, $height);
-if(eval{require Term::Size}){
-	($width, $height) = Term::Size::chars(\*STDIN);
-}else{
-	$width = `tput cols` || $ENV{COLUMNS} || 80;
-	$height = `tput lines` || $ENV{LINES} || 24;
-	chomp $width;
-	chomp $height;
-}
+my $win = $cui->add('window_id', 'Window');
 
-while(1) {
+my $listbox = $win->add('mylistbox', 'Listbox', 
+			-onchange    => sub{ user_select($cui, @_) },
+			-title       => "Select ROM",
+			-radio       => 0,
+			-wraparound  => 0,
+			-border      => 1,
+			-values      => [0..(keys %menu) - 1],
+			-labels      => \%menu);
 
-	Cdk::init();
-
-	my $scroll_menu = new Cdk::Scroll('Title'   => 'ROM Selection',
-					  'Height'  => $height,
-					  'Width'   => $width,
-					  'Numbers' => 'FALSE',
-					  'Spos'    => 'RIGHT',
-					  'List'    => \@menu);
-
-	my $item = $scroll_menu->activate();
-	my $id = $menu_map{$item};
-
-	if(! defined $item) {
-		last;
-	}
-#	Cdk::deinit();
-
-	my @cmd = ('ucon64', 
-		   '--xgd6',
-		   $roms{$id}->{file});
-
-	print "->@cmd\n";
-
-	system @cmd;
-	print "\e[1;37mPress return to continue\e[0m";
-	my $tmp = <>;
-}
-
-Cdk::end();
-
+$cui->set_binding(\&exit, 'q');
+$listbox->focus();
+$cui->mainloop;
