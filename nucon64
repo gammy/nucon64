@@ -1,6 +1,17 @@
 #!/usr/bin/perl
 # The worst program ever.
 # doesn't do much that ucon64 does :P
+#
+# You need ucon64. I assume you have a gd3-7, but you can
+# use others too (just search for '@cmd' in the source)
+# 
+# Bugs:
+# 	- infobox window is gay
+#	- you're gay
+#	- DB code doesn't skip duplicates with -scan
+#	  ..and blindly adds duplicate entries..
+#	- pork?
+
 use warnings;
 use strict;
 use Curses::UI;
@@ -32,7 +43,6 @@ sub create_table{
 			title    TEXT, 
 			region   TEXT, 
 			size     INTEGER, 
-			flags    TEXT,
 			source   TEXT,
 			has_dat  BOOLEAN,
 			ok_dump  BOOLEAN
@@ -83,7 +93,7 @@ sub get_entry{
 
 	my @res = $dbh->selectrow_array("SELECT id, crc, file, category, 
 						system, title, region, size, 
-						flags, source, has_dat, ok_dump
+						source, has_dat, ok_dump
 					FROM 
 						roms
 					WHERE
@@ -100,7 +110,7 @@ sub get_all_roms{
 
 	my $res = $dbh->selectall_arrayref("SELECT id, crc, file, category, 
 						system, title, region, size, 
-						flags, source, has_dat, ok_dump
+						source, has_dat, ok_dump
 					   FROM 
 					   	roms");
 
@@ -108,7 +118,7 @@ sub get_all_roms{
 
 		my ($id, $crc32, $file, $category, 
 		    $system, $title, $region, $size,
-		    $flags, $source, $has_dat, $ok_dump) = @$_;
+		    $source, $has_dat, $ok_dump) = @$_;
 
 		my %tmp = ('file'   => $file,
 			   'category' => $category,
@@ -142,9 +152,10 @@ sub find_roms{
 
 		my $category = (split '/', $file)[-2];
 
-		my ($rom, $crc32, $system, $title, $region, $size, $flags, $source, $ok_dump);
-		$rom = $crc32 = $system = $title = $region = $size = $flags =
-		$source = $ok_dump = '?';
+		my ($rom, $crc32, $system, $title, $region, $size, $source, $ok_dump);
+		$rom = $crc32 = $system = $title = $region = $size = 
+		$source = '?';
+		$ok_dump = 0;
 
 		my @stuffs = `ucon64 --lsd \"$file\"`;
 
@@ -163,10 +174,21 @@ sub find_roms{
 			$title =~s/\(.*?\)//gs;
 			$title =~s/\[.*?\]//gs;
 
+			$size = -s $file;
+
 			print "\e[1;31mBad\e[0m ROM: $title\n"
 		}else{
-			($rom, $crc32, $system, $title, $region, $size) = 
-			@stuffs;
+			print (join "\n", @stuffs) . "\n";
+			my ($tmpa, $tmpb);
+			($rom, $crc32, $system, $title, $region, $size, $tmpa, $tmpb) = 
+				@stuffs;
+
+			if($tmpa =~m/Flags: Verified good dump/) {
+				$ok_dump = 1;
+				$source  = $tmpb;
+			}else {
+				$source  = $tmpa;
+			}
 
 			$title =~s/\(.*?\)//gs;
 			$title =~s/\[.*?\]//gs;
@@ -187,10 +209,9 @@ sub find_roms{
 			  'title'  => $title, 
 			  'region' => $region, 
 			  'size'   => $size, 
-			  'flags'  => $flags,
 			  'source' => $source,
-			  'has_dat'=> $norom,
-			  'ok_dump'=> 1) ;
+			  'has_dat'=> ! $norom,
+			  'ok_dump'=> $ok_dump) ;
 
 		add_entry($dbh, %tmp);
 
@@ -220,16 +241,51 @@ sub user_select {
 	system @cmd;
 	print "\e[1;37mPress return to continue\e[0m";
 	my $tmp = <>;
+
+	$cui->reset_curses();
 }
 
 sub user_move {
-	my ($cui, $info, $obj) = @_;
+	my ($cui, $obj, $i) = @_;
 
-	my $item = $obj->get_active_value();
+	my $item;
 
-	my $id = $menu_map{$item};
+	if(defined $obj) {
+		$item = $obj->get_active_value();
+	} else {
+		$item = 0;
+	}
 
-	$info->
+	my $rom = $roms{$menu_map{$item}};
+
+	my $text = sprintf("%s\n" .
+			   "Size %2.1fM (%7db)",
+			   $rom->{file},
+			   $rom->{size} / 1024 / 1024,
+			   $rom->{size});
+
+	if($rom->{crc} ne '?') {
+		$text .= sprintf(" crc32 = %s",
+				 $rom->{crc});
+	} 
+
+	if($rom->{region} ne '?') {
+     		$text .= ", Region = $rom->{region}";
+	}
+	
+	$text .= "\n";
+
+	if($rom->{source} ne '?') {
+		$text .= sprintf("From %s (%s dump)",
+				 $rom->{source},
+				 $rom->{ok_dump} == 1 ? "good" : "bad");
+	}
+
+	$text .= "\n"; # FIXME HACK
+
+	$i->{-text} = $text;
+	#$i->{-bg} = $i->{-bbg} = $rom->{ok_dump} == 1 ? 'blue' : 'grey';
+	$i->draw();
 
 }
 ###############################################################################
@@ -273,29 +329,35 @@ my $cui = Curses::UI->new(-color_support => 1,
 my $win = $cui->add('window_id', 'Window',
 			-border      => 0);
 
-my $infobox = $win->add('myinfobox', 'Window',
+my $infobox = $win->add('myinfobox', 'TextViewer',
 			-border      => 1,
 			-title       => "Information",
-			-height      => 6);
-
+			-height      => 6,
+			-bg          => 'blue',
+			-fg          => 'white', 
+			-bfg         => 'white',
+			-bbg         => 'blue');
 
 my $listbox = $win->add('mylistbox', 'Listbox', 
 			-border      => 1,
-			-title       => "Select ROM",
+			-title       => "Select ROM ($rom_count roms)",
 			-height      => $cui->height - 6,
 			-y           => 6,
-			-onchange    => sub{ user_select($cui, @_) },
-			-oncselhange => sub{ user_move($cui, $infobox, @_) },
-			-bg          => 'black',
-			-fg          => 'cyan', 
-			-bfg         => 'cyan',
+			-onchange    => sub{ user_select($cui, shift) },
+			-onselchange => sub{ user_move($cui, shift, $infobox) },
+			-bg          => 'blue',
+			-fg          => 'white', 
+			-bfg         => 'white',
+			-bbg         => 'blue',
 			-radio       => 0,
 			-wraparound  => 0,
 			-values      => [0..(keys %menu) - 1],
 			-labels      => \%menu);
 
+# Populate Information box
+user_move($cui, undef, $infobox);
+
 $cui->set_binding(\&exit, 'q');
-$infobox->focus();
 $infobox->draw();
 $listbox->focus();
 $listbox->draw();
