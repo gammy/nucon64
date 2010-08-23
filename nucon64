@@ -1,9 +1,9 @@
 #!/usr/bin/perl
 # The worst program ever.
 
-#use warnings;
+use warnings;
 #use strict;
-use UDPM;
+use Cdk; # Fucks everything up
 use DBI;
 use Getopt::Long;
 use Data::Dumper;
@@ -13,188 +13,208 @@ use constant DB_FILENAME => $ENV{HOME} . '/.nucon64.sql';
 
 sub create_table{
 
-    my $dbh = shift;
+	my $dbh = shift;
 
-    $dbh->do(
-        "CREATE TABLE IF NOT EXISTS roms (
-            ID       INTEGER PRIMARY KEY AUTOINCREMENT, 
-            crc      CHAR(128), 
-            file     TEXT, 
-            category TEXT, 
-            system   TEXT, 
-            title    TEXT, 
-            region   TEXT, 
-            size     INTEGER, 
-	    flags    TEXT,
-	    source   TEXT,
-            has_dat  BOOLEAN,
-            ok_dump  BOOLEAN
-        )");
+	$dbh->do("
+		 CREATE TABLE IF NOT EXISTS roms (
+			ID INTEGER PRIMARY KEY AUTOINCREMENT, 
+       			crc      CHAR(128), 
+			file     TEXT, 
+			category TEXT, 
+			system   TEXT, 
+			title    TEXT, 
+			region   TEXT, 
+			size     INTEGER, 
+			flags    TEXT,
+			source   TEXT,
+			has_dat  BOOLEAN,
+			ok_dump  BOOLEAN
+		 )");
 
 }
 
 sub add_entry{
-    my $dbh = shift;
-    my %rom = @_;
+	my $dbh = shift;
+	my %rom = @_;
 
-    my @to_name;
-    my @to_data;
-    foreach (keys %rom) {
-	    my $val = $rom{$_};
-	    push @to_name, "'$_'";
-	    push @to_data, $dbh->quote($val);
+	my @to_name;
+	my @to_data;
+	foreach (keys %rom) {
+		my $val = $rom{$_};
+		push @to_name, "'$_'";
+		push @to_data, $dbh->quote($val);
 
-    }
+	}
 
-    $dbh->do("INSERT INTO roms
-                (" . (join ',', @to_name) . ") 
-            VALUES 
-                (" . (join ',', @to_data) . ")");
+	$dbh->do("INSERT INTO roms
+		 (" . (join ',', @to_name) . ") 
+		 VALUES 
+		 (" . (join ',', @to_data) . ")");
 }
 
 sub del_entry{
-    my ($dbh, $id) = @_;
-    $dbh->do(sprintf("DELETE FROM roms WHERE id = %d", $id));
+	my ($dbh, $id) = @_;
+	$dbh->do(sprintf("DELETE FROM roms WHERE id = %d", $id));
 }
 
 sub set_entry{
-    my ($dbh, $id, %stuff) = @_;
+	my ($dbh, $id, %stuff) = @_;
 
-    my @tmp;
-    foreach (keys %stuff) {
-	    push @tmp, "$_ = "  . $dbh->quote($stuff{$_});
-    }
+	my @tmp;
+	foreach (keys %stuff) {
+		push @tmp, "$_ = "  . $dbh->quote($stuff{$_});
+	}
 
-    $dbh->do("UPDATE roms SET
-	    	@tmp
-            WHERE
-                id = $id");
+	$dbh->do("UPDATE roms SET
+		 @tmp
+		 WHERE
+		 id = $id");
 }
 
 sub get_entry{
-    my ($dbh, $id) = @_;
+	my ($dbh, $id) = @_;
 
-    my @res = $dbh->selectrow_array(
-        "SELECT 
-	    crc, file, category, system, title, region, size, flags, source, has_dat, ok_dump
-        FROM 
-            roms
-        WHERE
-            id = $id"); # XXX strip quotes? make numeric?  meh.
+	my @res = $dbh->selectrow_array("
+					SELECT 
+						crc, 
+						file, 
+						category, 
+						system, 
+						title, 
+						region, 
+						size, 
+						flags, 
+						source, 
+						has_dat, 
+						ok_dump
+					FROM 
+						roms
+					WHERE
+						id = $id"); # XXX strip quotes? make numeric?  meh.
 
-    return @res;
+	return @res;
 }
 
 sub get_all_entries{
-    my $dbh = shift;
+	my $dbh = shift;
 
-    my $res = $dbh->selectall_arrayref(
-        "SELECT 
-	    id, crc, file, category, system, title, region, size, flags, source, has_dat, ok_dump
-        FROM 
-            roms");
+	my $res = $dbh->selectall_arrayref("SELECT 
+					   	id, 
+						crc, 
+						file, 
+						category, 
+						system, 
+						title, 
+						region,
+					       	size, 
+						flags, 
+						source, 
+						has_dat, 
+						ok_dump
+					   FROM 
+					   	roms");
 
-    return $res;
+	return $res;
 }
 
 sub get_all_roms{
-    my $dbh = shift;
-    my %roms;
+	my $dbh = shift;
+	my %roms;
 
-    $| = 0; print "Please wait..";
+	$| = 0; print "Please wait..";
 
-    my $res = get_all_entries($dbh);
+	my $res = get_all_entries($dbh);
 
-    foreach (@$res) {
+	foreach (@$res) {
 
-        my ($id, $crc32, $file, $category, $system, $title, $region, $size, $flags, $source, $has_dat, $ok_dump) = @$_;
+		my ($id, $crc32, $file, $category, $system, $title, $region, $size, $flags, $source, $has_dat, $ok_dump) = @$_;
 
-	my %tmp = ('file'   => $file,
-		   'category' => $category,
-		   'crc'    => $crc32, 
-		   'system' => $system, 
-		   'title'  => $title, 
-		   'region' => $region, 
-		   'size'   => $size, 
-		   'source' => $source,
-		   'has_dat'=> $has_dat,
-		   'ok_dump'=> $ok_dump);
+		my %tmp = ('file'   => $file,
+			   'category' => $category,
+			   'crc'    => $crc32, 
+			   'system' => $system, 
+			   'title'  => $title, 
+			   'region' => $region, 
+			   'size'   => $size, 
+			   'source' => $source,
+			   'has_dat'=> $has_dat,
+			   'ok_dump'=> $ok_dump);
 
-	$roms{$id} = \%tmp;
-    }
+		$roms{$id} = \%tmp;
+	}
 
-    $| = 1; print "ok.\n";
+	$| = 1; print "ok.\n";
 
-    return %roms;
+	return %roms;
 }
 
 sub find_roms{
-    my ($dbh, $search_path) = @_;
-    print "Plz wait, I'm stoned so this'll be slow..\n";
+	my ($dbh, $search_path) = @_;
+	print "Plz wait, I'm stoned so this'll be slow..\n";
 
-    my @file_list = (`find $search_path -type f -iname "*.smc"`);
-    chomp @file_list;
+	my @file_list = (`find $search_path -type f -iname "*.smc"`);
+	chomp @file_list;
 
-    # Stuffs
-    foreach my $file (@file_list) {
+# Stuffs
+	foreach my $file (@file_list) {
 
-	    my $category = (split '/', $file)[-2];
+		my $category = (split '/', $file)[-2];
 
-	    my ($rom, $crc32, $system, $title, $region, $size, $flags, $source, $ok_dump)  = 
-	    ('?', '?', '?', '?', '?', '?', '?', '?', '?');
+		my ($rom, $crc32, $system, $title, $region, $size, $flags, $source, $ok_dump)  = 
+		('?', '?', '?', '?', '?', '?', '?', '?', '?');
 
-	    my @stuffs = `ucon64 --lsd \"$file\"`;
+		my @stuffs = `ucon64 --lsd \"$file\"`;
 
-	    splice @stuffs, 0, 4;  # Remove ucon introduction
-	    s/\n$//s for @stuffs;  # Remove newline
-	    s/^\s+//s for @stuffs; # Remove prepended whitespaces
-	    s/^\t//s for @stuffs; # Remove prepended whitespaces
+		splice @stuffs, 0, 4;  # Remove ucon introduction
+		s/\n$//s for @stuffs;  # Remove newline
+		s/^\s+//s for @stuffs; # Remove prepended whitespaces
+		s/^\t//s for @stuffs; # Remove prepended whitespaces
 
-	    my $norom = $stuffs[2] =~/No ROM/;
-	    splice @stuffs, 2, 1;  # Remove DAT line
+		my $norom = $stuffs[2] =~/No ROM/;
+		splice @stuffs, 2, 1;  # Remove DAT line
 
-	    if($norom) { # (Probably still usable though)
-		    $title = $stuffs[0];
-		    $title =~tr/_/ /;
-		    $title = substr $title, 0, rindex($title, '.');
-		    $title =~s/\(.*?\)//gs;
-		    $title =~s/\[.*?\]//gs;
+		if($norom) { # (Probably still usable though)
+			$title = $stuffs[0];
+			$title =~tr/_/ /;
+			$title = substr $title, 0, rindex($title, '.');
+			$title =~s/\(.*?\)//gs;
+			$title =~s/\[.*?\]//gs;
 
-		    print "\e[1;31mBad\e[0m ROM: $title\n"
-	    }else{
-		    ($rom, $crc32, $system, $title, $region, $size) = 
-		    	@stuffs;
+			print "\e[1;31mBad\e[0m ROM: $title\n"
+		}else{
+			($rom, $crc32, $system, $title, $region, $size) = 
+			@stuffs;
 
-		    $title =~s/\(.*?\)//gs;
-		    $title =~s/\[.*?\]//gs;
+			$title =~s/\(.*?\)//gs;
+			$title =~s/\[.*?\]//gs;
 
-		    my $tmplen = rindex $crc32, ' ';
-		    $crc32 = substr $crc32, $tmplen + 1, length($crc32) - $tmplen;
+			my $tmplen = rindex $crc32, ' ';
+			$crc32 = substr $crc32, $tmplen + 1, length($crc32) - $tmplen;
 
-		    $size = substr $size, 0, index($size, ' ');
+			$size = substr $size, 0, index($size, ' ');
 
-		    print "\e[1;32mGood\e[0m ROM: $title\n";
+			print "\e[1;32mGood\e[0m ROM: $title\n";
 
-	    }
+		}
 
-	    my %tmp =	('file' => $file,
-			 'category' => $category,
-			 'crc'   => $crc32, 
-			 'system' => $system, 
-			 'title'  => $title, 
-			 'region' => $region, 
-			 'size'   => $size, 
-			 'flags'  => $flags,
-			 'source' => $source,
-			 'has_dat'=> $norom,
-			 'ok_dump'=> 1) ;
+		my %tmp =	('file' => $file,
+				 'category' => $category,
+				 'crc'   => $crc32, 
+				 'system' => $system, 
+				 'title'  => $title, 
+				 'region' => $region, 
+				 'size'   => $size, 
+				 'flags'  => $flags,
+				 'source' => $source,
+				 'has_dat'=> $norom,
+				 'ok_dump'=> 1) ;
 
-	    add_entry($dbh, %tmp);
+		add_entry($dbh, %tmp);
 
-	    undef %tmp;
-	    undef @stuffs;
+		undef %tmp;
+		undef @stuffs;
 
-    }
+	}
 }
 
 sub sort_by_cat {
@@ -208,7 +228,7 @@ my $search_path = '';
 GetOptions('scan|s=s' => \$search_path);
 
 my $dbh = DBI->connect('dbi:SQLite:' . DB_FILENAME) or 
-	die "No DB found; create a new one with -scan <path>";
+die "No DB found; create a new one with -scan <path>";
 
 create_table($dbh); # Creates if nonexistent
 
@@ -222,54 +242,79 @@ my $count = (keys %roms);
 die "No roms found. Try -scan <path>" if $count == 0;
 
 # Generate menu
+print "Gernerating menu..";
 my @menu = ();
+my %menu_map; # Mapper for menu number <> rom ID
 %menuh = %roms;
 foreach (sort sort_by_cat(keys %menuh)) {
-	push @menu, ($_, '(' . $roms{$_}->{category} . ') ' . $roms{$_}->{title});
+	#push @menu, ($_, sprintf("(%s) %s",
+
+	push @menu, sprintf("(%s) %s",
+		    $roms{$_}->{category},
+		    $roms{$_}->{title});
+	
+	$menu_map{@menu - 1} = $_;
 }
+
+print "ok, " . @menu / 2 . " items\n";
 
 # Get screen dimensions
 my ($width, $height);
 if(eval{require Term::Size}){
-    ($width, $height) = Term::Size::chars(\*STDIN);
+	($width, $height) = Term::Size::chars(\*STDIN);
 }else{
-    $width = `tput cols` || $ENV{COLUMNS} || 80;
-    $height = `tput lines` || $ENV{LINES} || 24;
-    chomp $width;
-    chomp $height;
+	$width = `tput cols` || $ENV{COLUMNS} || 80;
+	$height = `tput lines` || $ENV{LINES} || 24;
+	chomp $width;
+	chomp $height;
 }
 
 # Instantiate UDPM
-my $d = new UDPM ({'backtitle' => '',
-		  'colours'    => 1,
-		  'cr-wrap'    => 1,
-		  'height'     => $height,
-		  'width'      => $width,
-		  'list-height'=> $height - 8,
-		  'no-shadows' => 0});
-
+#print "UDPM..";
+#my $d = new UDPM ({'backtitle' => '',
+#		  'colours'    => 1,
+#		  'cr-wrap'    => 1,
+#		  'height'     => $height,
+#		  'width'      => $width,
+#		  'list-height'=> $height - 8,
+#		  'no-shadows' => 0}) or die "$!";
+#print "ok\n";
 
 my $busy = 1;
 while($busy) {
-      my $item = $d->menu({'text' => 'ROM Selection', 
-			  'menu' => [@menu]});
-      if(! $item) {
-	      $busy = 0;
-	      next;
-      }
+#      my $item = $d->menu({'text' => 'ROM Selection', 
+#			  'menu' => [@menu]}) or die "$!";
 
-      print "Selected $item = $roms{$item}\n";
+	Cdk::init();
+	my $scroll_menu = new Cdk::Scroll('Title'   => 'ROM Selection',
+					  'Height'  => $height,
+					  'Width'   => $width,
+					  'Numbers' => 'FALSE',
+					  'Spos'    => 'RIGHT',
+					  'List'    => \@menu);
 
-      my @cmd = ('ucon64', 
-		 '--xgd6',
-		 $roms{$item}->{file});
+	my $item = $scroll_menu->activate();
+	my $id = $menu_map{$item};
 
-      print "->@cmd\n";
+	if(! defined $item) {
+		$busy = 0;
+		next;
+	}
 
-      system @cmd;
-      print "\e[1;37mPress return to continue\e[0m";
-      my $tmp = <>;
+	open F, ">lol.log";
+	print F "Selected $item = $roms{$id}->{title}\n";
+	close F;
+
+	my @cmd = ('ucon64', 
+		   '--xgd6',
+		   $roms{$item}->{file});
+
+	print "->@cmd\n";
+
+	system @cmd;
+	print "\e[1;37mPress return to continue\e[0m";
+	my $tmp = <>;
 
 }
 
-print "Byez\n";
+Cdk::end();
