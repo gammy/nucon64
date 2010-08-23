@@ -1,8 +1,7 @@
 #!/usr/bin/perl
-# The worst program ever.
-
+# The worst progr
 use warnings;
-#use strict;
+use strict;
 use Cdk; # Fucks everything up
 use DBI;
 use Getopt::Long;
@@ -47,9 +46,9 @@ sub add_entry{
 	}
 
 	$dbh->do("INSERT INTO roms
-		 (" . (join ',', @to_name) . ") 
+		 	(" . (join ',', @to_name) . ") 
 		 VALUES 
-		 (" . (join ',', @to_data) . ")");
+		 	(" . (join ',', @to_data) . ")");
 }
 
 sub del_entry{
@@ -66,27 +65,17 @@ sub set_entry{
 	}
 
 	$dbh->do("UPDATE roms SET
-		 @tmp
+		 	@tmp
 		 WHERE
-		 id = $id");
+		 	id = $id");
 }
 
 sub get_entry{
 	my ($dbh, $id) = @_;
 
-	my @res = $dbh->selectrow_array("
-					SELECT 
-						crc, 
-						file, 
-						category, 
-						system, 
-						title, 
-						region, 
-						size, 
-						flags, 
-						source, 
-						has_dat, 
-						ok_dump
+	my @res = $dbh->selectrow_array("SELECT id, crc, file, category, 
+						system, title, region, size, 
+						flags, source, has_dat, ok_dump
 					FROM 
 						roms
 					WHERE
@@ -95,39 +84,23 @@ sub get_entry{
 	return @res;
 }
 
-sub get_all_entries{
-	my $dbh = shift;
-
-	my $res = $dbh->selectall_arrayref("SELECT 
-					   	id, 
-						crc, 
-						file, 
-						category, 
-						system, 
-						title, 
-						region,
-					       	size, 
-						flags, 
-						source, 
-						has_dat, 
-						ok_dump
-					   FROM 
-					   	roms");
-
-	return $res;
-}
-
 sub get_all_roms{
 	my $dbh = shift;
 	my %roms;
 
 	$| = 0; print "Please wait..";
 
-	my $res = get_all_entries($dbh);
+	my $res = $dbh->selectall_arrayref("SELECT id, crc, file, category, 
+						system, title, region, size, 
+						flags, source, has_dat, ok_dump
+					   FROM 
+					   	roms");
 
 	foreach (@$res) {
 
-		my ($id, $crc32, $file, $category, $system, $title, $region, $size, $flags, $source, $has_dat, $ok_dump) = @$_;
+		my ($id, $crc32, $file, $category, 
+		    $system, $title, $region, $size,
+		    $flags, $source, $has_dat, $ok_dump) = @$_;
 
 		my %tmp = ('file'   => $file,
 			   'category' => $category,
@@ -160,15 +133,16 @@ sub find_roms{
 
 		my $category = (split '/', $file)[-2];
 
-		my ($rom, $crc32, $system, $title, $region, $size, $flags, $source, $ok_dump)  = 
-		('?', '?', '?', '?', '?', '?', '?', '?', '?');
+		my ($rom, $crc32, $system, $title, $region, $size, $flags, $source, $ok_dump);
+		$rom = $crc32 = $system = $title = $region = $size = $flags =
+		$source = $ok_dump = '?';
 
 		my @stuffs = `ucon64 --lsd \"$file\"`;
 
 		splice @stuffs, 0, 4;  # Remove ucon introduction
 		s/\n$//s for @stuffs;  # Remove newline
 		s/^\s+//s for @stuffs; # Remove prepended whitespaces
-		s/^\t//s for @stuffs; # Remove prepended whitespaces
+		s/^\t//s for @stuffs;  # Remove prepended whitespaces
 
 		my $norom = $stuffs[2] =~/No ROM/;
 		splice @stuffs, 2, 1;  # Remove DAT line
@@ -197,17 +171,17 @@ sub find_roms{
 
 		}
 
-		my %tmp =	('file' => $file,
-				 'category' => $category,
-				 'crc'   => $crc32, 
-				 'system' => $system, 
-				 'title'  => $title, 
-				 'region' => $region, 
-				 'size'   => $size, 
-				 'flags'  => $flags,
-				 'source' => $source,
-				 'has_dat'=> $norom,
-				 'ok_dump'=> 1) ;
+		my %tmp =('file'   => $file,
+			  'category' => $category,
+			  'crc'    => $crc32, 
+			  'system' => $system, 
+			  'title'  => $title, 
+			  'region' => $region, 
+			  'size'   => $size, 
+			  'flags'  => $flags,
+			  'source' => $source,
+			  'has_dat'=> $norom,
+			  'ok_dump'=> 1) ;
 
 		add_entry($dbh, %tmp);
 
@@ -215,10 +189,6 @@ sub find_roms{
 		undef @stuffs;
 
 	}
-}
-
-sub sort_by_cat {
-	$menuh{$b} <=> $menuh{$a};
 }
 
 ###############################################################################
@@ -242,14 +212,12 @@ my $count = (keys %roms);
 die "No roms found. Try -scan <path>" if $count == 0;
 
 # Generate menu
-print "Gernerating menu..";
+print "Generating menu..";
 my @menu = ();
 my %menu_map; # Mapper for menu number <> rom ID
-%menuh = %roms;
-foreach (sort sort_by_cat(keys %menuh)) {
-	#push @menu, ($_, sprintf("(%s) %s",
 
-	push @menu, sprintf("(%s) %s",
+foreach (sort {$roms{$b} <=> $roms{$a}} (keys %roms)) {
+	push @menu, sprintf("(<//4/4>%s<!4>) %s",
 		    $roms{$_}->{category},
 		    $roms{$_}->{title});
 	
@@ -269,23 +237,10 @@ if(eval{require Term::Size}){
 	chomp $height;
 }
 
-# Instantiate UDPM
-#print "UDPM..";
-#my $d = new UDPM ({'backtitle' => '',
-#		  'colours'    => 1,
-#		  'cr-wrap'    => 1,
-#		  'height'     => $height,
-#		  'width'      => $width,
-#		  'list-height'=> $height - 8,
-#		  'no-shadows' => 0}) or die "$!";
-#print "ok\n";
-
-my $busy = 1;
-while($busy) {
-#      my $item = $d->menu({'text' => 'ROM Selection', 
-#			  'menu' => [@menu]}) or die "$!";
+while(1) {
 
 	Cdk::init();
+
 	my $scroll_menu = new Cdk::Scroll('Title'   => 'ROM Selection',
 					  'Height'  => $height,
 					  'Width'   => $width,
@@ -297,24 +252,20 @@ while($busy) {
 	my $id = $menu_map{$item};
 
 	if(! defined $item) {
-		$busy = 0;
-		next;
+		last;
 	}
-
-	open F, ">lol.log";
-	print F "Selected $item = $roms{$id}->{title}\n";
-	close F;
+#	Cdk::deinit();
 
 	my @cmd = ('ucon64', 
 		   '--xgd6',
-		   $roms{$item}->{file});
+		   $roms{$id}->{file});
 
 	print "->@cmd\n";
 
 	system @cmd;
 	print "\e[1;37mPress return to continue\e[0m";
 	my $tmp = <>;
-
 }
 
 Cdk::end();
+
