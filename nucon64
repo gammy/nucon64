@@ -1,9 +1,11 @@
 #!/usr/bin/perl
-# The worst progr
+# The worst program ever.
+# doesn't do much that ucon64 does :P
 use warnings;
 use strict;
 use Curses::UI;
 use Curses::UI::Listbox;
+use Curses::UI::Color;
 
 use DBI;
 use Getopt::Long;
@@ -127,6 +129,7 @@ sub get_all_roms{
 	return %out;
 }
 
+# Terrible.
 sub find_roms{
 	my ($dbh, $search_path) = @_;
 	print "Plz wait, I'm stoned so this'll be slow..\n";
@@ -219,16 +222,26 @@ sub user_select {
 	my $tmp = <>;
 }
 
+sub user_move {
+	my ($cui, $info, $obj) = @_;
+
+	my $item = $obj->get_active_value();
+
+	my $id = $menu_map{$item};
+
+	$info->
+
+}
 ###############################################################################
 
 my $search_path = '';
-
-GetOptions('scan|s=s' => \$search_path);
 
 my $dbh = DBI->connect('dbi:SQLite:' . DB_FILENAME) or 
 die "No DB found; create a new one with -scan <path>";
 
 create_table($dbh); # Creates if nonexistent
+
+GetOptions('scan|s=s' => \$search_path);
 
 # Populate db if -scan is selected
 find_roms($dbh, $search_path) if $search_path ne '';
@@ -252,20 +265,38 @@ foreach (sort {$roms{$b} <=> $roms{$a}} (keys %roms)) {
 }
 
 # Widget
-my $cui = Curses::UI->new(-color_suppoer => 1,
+my $cui = Curses::UI->new(-color_support => 1,
 			  -clear_on_exit => 0);
 
-my $win = $cui->add('window_id', 'Window');
+
+
+my $win = $cui->add('window_id', 'Window',
+			-border      => 0);
+
+my $infobox = $win->add('myinfobox', 'Window',
+			-border      => 1,
+			-title       => "Information",
+			-height      => 6);
+
 
 my $listbox = $win->add('mylistbox', 'Listbox', 
-			-onchange    => sub{ user_select($cui, @_) },
+			-border      => 1,
 			-title       => "Select ROM",
+			-height      => $cui->height - 6,
+			-y           => 6,
+			-onchange    => sub{ user_select($cui, @_) },
+			-oncselhange => sub{ user_move($cui, $infobox, @_) },
+			-bg          => 'black',
+			-fg          => 'cyan', 
+			-bfg         => 'cyan',
 			-radio       => 0,
 			-wraparound  => 0,
-			-border      => 1,
 			-values      => [0..(keys %menu) - 1],
 			-labels      => \%menu);
 
 $cui->set_binding(\&exit, 'q');
+$infobox->focus();
+$infobox->draw();
 $listbox->focus();
+$listbox->draw();
 $cui->mainloop;
