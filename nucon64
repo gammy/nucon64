@@ -259,8 +259,9 @@ sub user_move {
 	my $rom = $roms{$menu_map{$item}};
 
 	my $text = sprintf("%s\n" .
-			   "Size %2.1fM (%7db)",
+			   "Size %2.0fM (%2.1fMiB, %7db)",
 			   $rom->{file},
+			   $rom->{size} / 1024 / 8 / 8,
 			   $rom->{size} / 1024 / 1024,
 			   $rom->{size});
 
@@ -270,7 +271,7 @@ sub user_move {
 	} 
 
 	if($rom->{region} ne '?') {
-     		$text .= ", Region = $rom->{region}";
+     		$text .= " Region = $rom->{region}";
 	}
 	
 	$text .= "\n";
