@@ -228,17 +228,22 @@ sub find_roms{
 sub user_select {
 	my ($cui, $obj) = @_;
 
-	my $item = $obj->get_active_value();
+	my $item = $obj->get_active_value(); # could be id as well..
 
 	my $id = $menu_map{$item};
 
 	$cui->leave_curses();
 
+	my $title = $roms{$id}->{title};
+	my $title_len = length $title;
+	my $separator = (' 'x(78 - $title_len));
+	print "\n\e[4m$title$separator\e[0m\n\n";
+
 	my @cmd = ('ucon64', 
 		   '--xgd6',
 		   $roms{$id}->{file});
 
-	print "->@cmd\n";
+	print ">@cmd\n";
 
 	system @cmd;
 	print "\e[1;37mPress return to continue\e[0m";
