@@ -11,6 +11,7 @@
 #	- DB code doesn't skip duplicates with -scan
 #	  ..and blindly adds duplicate entries..
 #	- pork?
+#	- vscrollbar won't respect bg color (so I changed the colors for now)
 # Ideas:
 # 	- use scrollbar for filename in textviewer
 
@@ -347,10 +348,10 @@ my $infobox = $win->add('myinfobox', 'TextViewer',
 			-border      => 1,
 			-title       => "Information",
 			-height      => 6,
-			-bg          => 'blue',
+			-bg          => 'black',
 			-fg          => 'white', 
-			-bfg         => 'white',
-			-bbg         => 'blue',
+			-bfg         => 'blue',
+			-bbg         => 'black',
 			-tfg         => 'blue',
 			-tbg         => 'black');
 
@@ -362,7 +363,7 @@ my $listbox = $win->add('mylistbox', 'Listbox',
 			-y           => 6,
 			-onchange    => sub{ user_select($cui, shift) },
 			-onselchange => sub{ user_move($cui, shift, $infobox) },
-			-bg          => 'blue',
+			-bg          => 'black',
 			-fg          => 'white', 
 			-bfg         => 'white',
 			-bbg         => 'blue',
@@ -372,7 +373,15 @@ my $listbox = $win->add('mylistbox', 'Listbox',
 			-wraparound  => 0,
 			-values      => [0..(keys %menu) - 1],
 			-labels      => \%menu,
-			-htmltext    => 1);
+			-htmltext    => 1,
+			-vscrollbar  => 'right',
+			-sbg         => 'red',
+			-sfg         => 'red');
+
+$listbox->{-sfg} = 'blue';
+$listbox->{-sbg} = 'red';
+$listbox->{-bbg} = 'black';
+$listbox->{-bfg} = 'blue';
 
 # Populate Information box
 user_move($cui, undef, $infobox);
