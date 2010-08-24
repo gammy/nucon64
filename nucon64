@@ -11,6 +11,8 @@
 #	- DB code doesn't skip duplicates with -scan
 #	  ..and blindly adds duplicate entries..
 #	- pork?
+# Ideas:
+# 	- use scrollbar for filename in textviewer
 
 use warnings;
 use strict;
@@ -313,9 +315,12 @@ print "$rom_count roms.\n";
 # Generate menu
 my $count = 0;
 foreach (sort {$roms{$b} <=> $roms{$a}} (keys %roms)) {
-	$menu{$count} = sprintf("(%s) %s", 
+	my $highlight = $roms{$_}->{ok_dump} ? 'bold' : 'dim';
+	$menu{$count} = sprintf("(<bold>%s</bold>) <%s>%s</%s>", 
 				$roms{$_}->{category}, 
-				$roms{$_}->{title});
+				$highlight,
+				$roms{$_}->{title},
+				$highlight);
 	$menu_map{$count} = $_;
 
 	$count++
@@ -353,7 +358,8 @@ my $listbox = $win->add('mylistbox', 'Listbox',
 			-radio       => 0,
 			-wraparound  => 0,
 			-values      => [0..(keys %menu) - 1],
-			-labels      => \%menu);
+			-labels      => \%menu,
+			-htmltext    => 1);
 
 # Populate Information box
 user_move($cui, undef, $infobox);
