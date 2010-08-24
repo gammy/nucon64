@@ -6,12 +6,16 @@
 # use others too (just search for '@cmd' in the source)
 # 
 # Bugs:
+#	- Lots of bugs related to Curses::UI. Not my fault!
+#		- bgcolors are really weird. See 'BUG'.
+#		- vertical scrollbar element "-sbg" (bgcolor) is ignored and
+#                 instead inherits the color from the "-tfg" (title fgcolor)!
+#		- the listbox WILL NOT let you select the same item twice.
 # 	- infobox window is gay
 #	- you're gay
 #	- DB code doesn't skip duplicates with -scan
 #	  ..and blindly adds duplicate entries..
 #	- pork?
-#	- vscrollbar won't respect bg color (so I changed the colors for now)
 # Ideas:
 # 	- use scrollbar for filename in textviewer
 
@@ -33,6 +37,7 @@ my %roms;     # ROM cache
 my %menu;     # Menu index + menu title
 my %menu_map; # Mapper for menu number <> rom ID
 my $rom_count;
+my ($listbox, $infobox);
 
 sub create_table{
 
@@ -144,6 +149,10 @@ sub get_all_roms{
 	return %out;
 }
 
+sub repair_colors{
+
+}
+
 # Terrible.
 sub find_roms{
 	my ($dbh, $search_path) = @_;
@@ -228,6 +237,21 @@ sub find_roms{
 
 ###############################################################################
 
+sub bgcolor_fix {
+	my $widget = shift;
+
+	# Ugly background color filling correction
+	my $color_obj = new Curses::UI::Color; 
+	my $scr = defined $widget->{-borderscr} ? 
+		$widget->{-borderscr} : $widget->{-canvasscr};
+	my $pair = $color_obj->get_color_pair($widget->{-fg}, 
+					      $widget->{-bg});
+	$scr->bkgdset(COLOR_PAIR($pair) | 32);
+	undef $color_obj;
+
+	$widget->draw();
+}
+
 sub user_select {
 	my ($cui, $obj) = @_;
 
@@ -235,16 +259,22 @@ sub user_select {
 
 	my $id = $menu_map{$item};
 
+	run_ucon($cui, $roms{$id});
+}
+
+sub run_ucon {
+	my ($cui, $rom) = @_;
+
 	$cui->leave_curses();
 
-	my $title = $roms{$id}->{title};
+	my $title = $rom->{title};
 	my $title_len = length $title;
 	my $separator = (' 'x(78 - $title_len));
 	print "\n\e[4m$title$separator\e[0m\n\n";
 
 	my @cmd = ('ucon64', 
 		   '--xgd6',
-		   $roms{$id}->{file});
+		   $rom->{file});
 
 	print ">@cmd\n";
 
@@ -253,6 +283,8 @@ sub user_select {
 	my $tmp = <>;
 
 	$cui->reset_curses();
+
+	bgcolor_fix($infobox);
 }
 
 sub user_move {
@@ -295,8 +327,8 @@ sub user_move {
 	}
 
 	$i->{-text} = $text;
-	#$i->{-bg} = $i->{-bbg} = $rom->{ok_dump} == 1 ? 'blue' : 'grey';
-	$i->draw();
+
+	bgcolor_fix($i);
 
 }
 ###############################################################################
@@ -338,56 +370,50 @@ foreach (sort {$roms{$b} <=> $roms{$a}} (keys %roms)) {
 my $cui = Curses::UI->new(-color_support => 1,
 			  -clear_on_exit => 0);
 
-
-
 my $win = $cui->add('window_id', 'Window',
 			-border      => 0);
 
-my $infobox = $win->add('myinfobox', 'TextViewer',
-			-border      => 1,
-			-title       => "Information",
-			-height      => 6,
-			-fg          => 'white', 
-			-bg          => 'blue',
-			-tfg         => 'white', # These are quite clearly
-			-tbg         => 'blue'); # inverted. Curses::UI BUG!!
+$infobox = $win->add('myinfobox', 'TextViewer',
+		     -border      => 1,
+		     -title       => "Information",
+		     -height      => 6,
+		     -fg          => 'white', 
+		     -bg          => 'blue',
+		     -tfg         => 'white', # These are quite clearly
+		     -tbg         => 'blue',  # inverted. Curses::UI BUG!!
+		     -bfg         => 'white',
+		     -bbg         => 'blue');
 
-my $listbox = $win->add('mylistbox', 'Listbox', 
-			-border      => 1,
-			-title       => sprintf("Select ROM (" .
-						"%d/%d)", 1, $rom_count),
-			-height      => $cui->height - 6,
-			-y           => 6,
-			-onchange    => sub{ user_select($cui, shift) },
-			-onselchange => sub{ user_move($cui, shift, $infobox) },
-			-fg          => 'white', 
-			-bg          => 'blue',
-			-tfg         => 'white', # Unfortunately these are
-			-tbg         => 'blue',  # inhereted by the scrollbar.
-			-radio       => 0,
-			-wraparound  => 0,
-			-values      => [0..(keys %menu) - 1],
-			-labels      => \%menu,
-			-htmltext    => 1,
-			-vscrollbar  => 'right');
+$listbox = $win->add('mylistbox', 'Listbox', 
+		     -border      => 1,
+		     -title       => sprintf("Select ROM (" .
+					     "%d/%d)", 1, $rom_count),
+		     -height      => $cui->height - 6,
+		     -y           => 6,
+		     -onchange    => sub{ user_select($cui, shift) },
+		     -onselchange => sub{ user_move($cui, shift, $infobox) },
+		     -fg          => 'white', 
+		     -bg          => 'blue',
+		     -bfg         => 'white',
+		     -bbg         => 'blue',
+		     -tfg         => 'white',
+		     -tbg         => 'blue', # Inherited by scrollbar?!
+		     -sfg         => 'white',
+		     -radio       => 0,
+		     -wraparound  => 0,
+		     -values      => [0..(keys %menu) - 1],
+		     -labels      => \%menu,
+		     -htmltext    => 1,
+		     -vscrollbar  => 'right');
+
 
 # Populate Information box
 user_move($cui, undef, $infobox);
 
-# Ugly border color correction + background color filling
-my $color = new Curses::UI::Color;
-foreach my $widget ($infobox, $listbox) {
-	my $scr = defined $widget->{-borderscr} ? $widget->{-borderscr} : 
-                                                  $widget->{-canvasscr};
-	my $pair = $color->get_color_pair($widget->{-fg}, $widget->{-bg});
-	$scr->bkgdset(COLOR_PAIR($pair) | 32);
-}
-
 $cui->set_binding(\&exit, 'q');
+
 $infobox->draw();
-$listbox->focus();
 $listbox->draw();
-
-
+$listbox->focus();
 
 $cui->mainloop;
