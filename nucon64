@@ -30,6 +30,7 @@ use constant DB_FILENAME => $ENV{HOME} . '/.nucon64.sql';
 my %roms;     # ROM cache
 my %menu;     # Menu index + menu title
 my %menu_map; # Mapper for menu number <> rom ID
+my $rom_count;
 
 sub create_table{
 
@@ -262,6 +263,8 @@ sub user_move {
 	} else {
 		$item = 0;
 	}
+	
+	$obj->{-title} = sprintf("Select ROM (%d/%d)", 1 + $item, $rom_count);
 
 	my $rom = $roms{$menu_map{$item}};
 
@@ -313,7 +316,7 @@ find_roms($dbh, $search_path) if $search_path ne '';
 # Populate cache
 %roms = get_all_roms($dbh);
 
-my $rom_count = (keys %roms);
+$rom_count = (keys %roms);
 die "No roms found. Try -scan <path>" if $rom_count == 0;
 print "$rom_count roms.\n";
 
@@ -347,11 +350,14 @@ my $infobox = $win->add('myinfobox', 'TextViewer',
 			-bg          => 'blue',
 			-fg          => 'white', 
 			-bfg         => 'white',
-			-bbg         => 'blue');
+			-bbg         => 'blue',
+			-tfg         => 'blue',
+			-tbg         => 'black');
 
 my $listbox = $win->add('mylistbox', 'Listbox', 
 			-border      => 1,
-			-title       => "Select ROM ($rom_count roms)",
+			-title       => sprintf("Select ROM (" .
+						"%d/%d)", 1, $rom_count),
 			-height      => $cui->height - 6,
 			-y           => 6,
 			-onchange    => sub{ user_select($cui, shift) },
@@ -360,6 +366,8 @@ my $listbox = $win->add('mylistbox', 'Listbox',
 			-fg          => 'white', 
 			-bfg         => 'white',
 			-bbg         => 'blue',
+			-tfg         => 'blue',
+			-tbg         => 'black',
 			-radio       => 0,
 			-wraparound  => 0,
 			-values      => [0..(keys %menu) - 1],
