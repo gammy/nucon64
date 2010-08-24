@@ -17,6 +17,7 @@
 
 use warnings;
 use strict;
+use Curses;
 use Curses::UI;
 use Curses::UI::Listbox;
 use Curses::UI::Color;
@@ -293,8 +294,6 @@ sub user_move {
 				 $rom->{ok_dump} == 1 ? "good" : "bad");
 	}
 
-	$text .= "\n"; # FIXME HACK
-
 	$i->{-text} = $text;
 	#$i->{-bg} = $i->{-bbg} = $rom->{ok_dump} == 1 ? 'blue' : 'grey';
 	$i->draw();
@@ -348,12 +347,10 @@ my $infobox = $win->add('myinfobox', 'TextViewer',
 			-border      => 1,
 			-title       => "Information",
 			-height      => 6,
-			-bg          => 'black',
 			-fg          => 'white', 
-			-bfg         => 'blue',
-			-bbg         => 'black',
-			-tfg         => 'blue',
-			-tbg         => 'black');
+			-bg          => 'blue',
+			-tfg         => 'white', # These are quite clearly
+			-tbg         => 'blue'); # inverted. Curses::UI BUG!!
 
 my $listbox = $win->add('mylistbox', 'Listbox', 
 			-border      => 1,
@@ -363,31 +360,34 @@ my $listbox = $win->add('mylistbox', 'Listbox',
 			-y           => 6,
 			-onchange    => sub{ user_select($cui, shift) },
 			-onselchange => sub{ user_move($cui, shift, $infobox) },
-			-bg          => 'black',
 			-fg          => 'white', 
-			-bfg         => 'white',
-			-bbg         => 'blue',
-			-tfg         => 'blue',
-			-tbg         => 'black',
+			-bg          => 'blue',
+			-tfg         => 'white', # Unfortunately these are
+			-tbg         => 'blue',  # inhereted by the scrollbar.
 			-radio       => 0,
 			-wraparound  => 0,
 			-values      => [0..(keys %menu) - 1],
 			-labels      => \%menu,
 			-htmltext    => 1,
-			-vscrollbar  => 'right',
-			-sbg         => 'red',
-			-sfg         => 'red');
-
-$listbox->{-sfg} = 'blue';
-$listbox->{-sbg} = 'red';
-$listbox->{-bbg} = 'black';
-$listbox->{-bfg} = 'blue';
+			-vscrollbar  => 'right');
 
 # Populate Information box
 user_move($cui, undef, $infobox);
+
+# Ugly border color correction + background color filling
+my $color = new Curses::UI::Color;
+foreach my $widget ($infobox, $listbox) {
+	my $scr = defined $widget->{-borderscr} ? $widget->{-borderscr} : 
+                                                  $widget->{-canvasscr};
+	my $pair = $color->get_color_pair($widget->{-fg}, $widget->{-bg});
+	$scr->bkgdset(COLOR_PAIR($pair) | 32);
+}
 
 $cui->set_binding(\&exit, 'q');
 $infobox->draw();
 $listbox->focus();
 $listbox->draw();
+
+
+
 $cui->mainloop;
